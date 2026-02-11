@@ -9,9 +9,7 @@ function Player:init(options)
   Player.super.init(self, options)
   self.speed = options.speed or 180
   self.color = options.color or { 0.92, 0.92, 0.92 }
-  self.aimColor = options.aimColor or { 0.15, 0.15, 0.15 }
   self.facingAngle = 0
-  self.aimLength = options.aimLength or 20
 end
 
 -- Place the player in the center of the room.
@@ -20,7 +18,7 @@ function Player:spawnAtRoomCenter(room)
   self.position.y = room.origin.y + room.height / 2
 end
 
--- Clamp player position so the square stays inside room bounds.
+-- Clamp player position so the triangle stays inside room bounds.
 function Player:clampToRoom(room)
   local halfSize = self.size / 2
   self.position.x = math.max(room.origin.x + halfSize, math.min(self.position.x, room.origin.x + room.width - halfSize))
@@ -33,16 +31,30 @@ function Player:updateFacingToMouse()
   self.facingAngle = math.atan2(mouseY - self.position.y, mouseX - self.position.x)
 end
 
--- Draw the player square and a small aiming indicator toward the cursor.
+-- Draw the player as a triangle whose tip points toward the cursor.
 function Player:draw()
-  Player.super.draw(self)
+  local forwardX = math.cos(self.facingAngle)
+  local forwardY = math.sin(self.facingAngle)
+  local sideX = -forwardY
+  local sideY = forwardX
 
-  local aimX = self.position.x + math.cos(self.facingAngle) * self.aimLength
-  local aimY = self.position.y + math.sin(self.facingAngle) * self.aimLength
+  local tipDistance = self.size * 0.65
+  local baseDistance = self.size * 0.45
+  local halfBaseWidth = self.size * 0.5
 
-  love.graphics.setColor(self.aimColor)
-  love.graphics.setLineWidth(3)
-  love.graphics.line(self.position.x, self.position.y, aimX, aimY)
+  local tipX = self.position.x + forwardX * tipDistance
+  local tipY = self.position.y + forwardY * tipDistance
+
+  local baseCenterX = self.position.x - forwardX * baseDistance
+  local baseCenterY = self.position.y - forwardY * baseDistance
+
+  local leftX = baseCenterX + sideX * halfBaseWidth
+  local leftY = baseCenterY + sideY * halfBaseWidth
+  local rightX = baseCenterX - sideX * halfBaseWidth
+  local rightY = baseCenterY - sideY * halfBaseWidth
+
+  love.graphics.setColor(self.color)
+  love.graphics.polygon("fill", tipX, tipY, leftX, leftY, rightX, rightY)
 end
 
 -- Consume continuous input for smooth movement each frame.

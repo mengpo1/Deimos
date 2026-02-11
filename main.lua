@@ -60,7 +60,7 @@ function love.draw()
   player:draw()
 
   love.graphics.setColor(0.75, 0.75, 0.75)
-  love.graphics.print("Flèches/WASD: déplacement fluide • Souris: direction de visée", 24, 12)
+  love.graphics.print("Flèches/WASD: déplacement fluide • Souris: orientation de la pointe", 24, 12)
 end
 
 -- Register key presses for action handling.
