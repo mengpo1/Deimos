@@ -1,4 +1,4 @@
--- Turn manager to sequence actor turns in a simple round-robin loop.
+-- Turn manager sequencing actor updates in a simple round-robin loop.
 local Class = require("core.class")
 
 local TurnManager = Class()
@@ -24,20 +24,21 @@ function TurnManager:advance()
   if #self.actors == 0 then
     return
   end
+
   self.activeIndex = self.activeIndex + 1
   if self.activeIndex > #self.actors then
     self.activeIndex = 1
   end
 end
 
--- Let the active actor update, then advance on successful action.
-function TurnManager:update(input, room, dt)
+-- Let the active actor update using shared world context.
+function TurnManager:update(input, world, dt)
   local actor = self:getActiveActor()
   if not actor then
     return
   end
 
-  if actor:takeTurn(input, room, dt) then
+  if actor:takeTurn(input, world, dt) then
     self:advance()
   end
 end

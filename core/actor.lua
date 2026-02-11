@@ -9,8 +9,8 @@ function Actor:init(options)
   Actor.super.init(self, options or {})
 end
 
--- Override in subclasses to perform an action; return true when action consumed.
-function Actor:takeTurn()
+-- Override in subclasses to consume input and act within world context.
+function Actor:takeTurn(input, world, dt)
   return false
 end
 
