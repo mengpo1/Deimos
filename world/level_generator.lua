@@ -284,10 +284,7 @@ local function buildZone2(rng)
   carveRect(floors, centralRoom.x, centralRoom.y, centralRoom.width, centralRoom.height)
 
   local frontier = { 1 }
-  local growthAttempts = 0
-  local maxGrowthAttempts = roomTarget * 80
-  while #rooms < roomTarget and #frontier > 0 and growthAttempts < maxGrowthAttempts do
-    growthAttempts = growthAttempts + 1
+  while #rooms < roomTarget and #frontier > 0 do
     local parentIndex = frontier[rng.randomInt(1, #frontier)]
     local parent = rooms[parentIndex]
     local parentCenter = roomCenter(parent)
@@ -338,15 +335,6 @@ local function buildZone2(rng)
         local thickness = rng.pick({ 1, 2 })
         table.insert(corridors, carveLShapedCorridor(floors, parentCenter, newCenter, thickness))
         table.insert(frontier, #rooms)
-      else
-        if rng.randomFloat() < 0.2 then
-          for i = #frontier, 1, -1 do
-            if frontier[i] == parentIndex then
-              table.remove(frontier, i)
-              break
-            end
-          end
-        end
       end
     end
   end
@@ -453,19 +441,6 @@ local function validateZone(zone)
   return floodFillConnected(zone.floors, c.x, c.y)
 end
 
-local function validateZoneShapeConstraints(zone1, zone2, zone3)
-  if #zone1.rooms < 8 or #zone1.rooms > 15 then
-    return false
-  end
-  if #zone2.rooms < 10 or #zone2.rooms > 20 then
-    return false
-  end
-  if #zone3.rooms < 3 or #zone3.rooms > 6 then
-    return false
-  end
-  return true
-end
-
 local function validateGlobalPath(level)
   if not validateZone(level.zone1) then return false end
   if not validateZone(level.zone2) then return false end
@@ -522,7 +497,7 @@ function LevelGenerator.generateLevel(seed)
       },
     }
 
-    if validateZoneShapeConstraints(zone1, zone2, zone3) and validateGlobalPath({ zone1 = zone1, zone2 = zone2, zone3 = zone3 }) then
+    if validateGlobalPath({ zone1 = zone1, zone2 = zone2, zone3 = zone3 }) then
       return level
     end
   end
