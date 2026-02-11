@@ -249,7 +249,6 @@ local function buildZone1(rng)
   addDoor(rooms[1].doors, floors, entry.x, entry.y)
   addDoor(rooms[#rooms].doors, floors, connectorToZone2.x, connectorToZone2.y)
 
-  -- Ensure border doors connect inward.
   floors[keyOf(entry.x + 1, entry.y)] = true
   floors[keyOf(connectorToZone2.x - 1, connectorToZone2.y)] = true
 
@@ -348,9 +347,8 @@ local function buildZone2(rng)
   floors[keyOf(connectorFromZone1.x + 1, connectorFromZone1.y)] = true
   floors[keyOf(connectorToZone3.x - 1, connectorToZone3.y)] = true
 
-  -- Ensure at least 2 dead-end corridors by carving small spur branches.
   local spurCount = 0
-  while spurCount < 2 do
+  while spurCount < 2 and #rooms >= 2 do
     local baseRoom = rooms[rng.randomInt(2, #rooms)]
     local c = roomCenter(baseRoom)
     local endpoint = {
@@ -444,23 +442,11 @@ local function validateZone(zone)
 end
 
 local function validateGlobalPath(level)
-  if not validateZone(level.zone1) then
-    return false
-  end
-  if not validateZone(level.zone2) then
-    return false
-  end
-  if not validateZone(level.zone3) then
-    return false
-  end
-
-  if not level.zone1.connector_to_zone2 then
-    return false
-  end
-  if not level.zone2.connector_to_zone3 then
-    return false
-  end
-
+  if not validateZone(level.zone1) then return false end
+  if not validateZone(level.zone2) then return false end
+  if not validateZone(level.zone3) then return false end
+  if not level.zone1.connector_to_zone2 then return false end
+  if not level.zone2.connector_to_zone3 then return false end
   return true
 end
 
@@ -485,6 +471,7 @@ function LevelGenerator.generateLevel(seed)
         rooms = zone1.rooms,
         corridors = zone1.corridors,
         tiles = zone1.tiles,
+        entry = clonePoint(zone1.entry),
         connector_to_zone2 = {
           zone1 = clonePoint(zone1.connector_to_zone2),
           zone2 = clonePoint(zone2.connector_from_zone1),
@@ -516,6 +503,26 @@ function LevelGenerator.generateLevel(seed)
   end
 
   error("generateLevel(seed): impossible de générer un niveau valide après plusieurs tentatives")
+end
+
+-- Lightweight deterministic smoke test for generation constraints.
+function LevelGenerator.runSmokeTest(seed, runs)
+  local count = runs or 3
+  local base = tonumber(seed) or 1
+
+  for i = 0, count - 1 do
+    local level = LevelGenerator.generateLevel(base + i)
+    assert(level.zone1 and level.zone2 and level.zone3, "zones manquantes")
+    assert(level.zone1.dimensions.width >= 50 and level.zone1.dimensions.width <= 70, "zone1 width invalide")
+    assert(level.zone2.dimensions.width >= 40 and level.zone2.dimensions.width <= 60, "zone2 width invalide")
+    assert(level.zone3.dimensions.width >= 60 and level.zone3.dimensions.width <= 80, "zone3 width invalide")
+    assert(#level.zone1.rooms >= 8 and #level.zone1.rooms <= 15, "zone1 rooms invalides")
+    assert(#level.zone2.rooms >= 10 and #level.zone2.rooms <= 20, "zone2 rooms invalides")
+    assert(#level.zone3.rooms >= 3 and #level.zone3.rooms <= 6, "zone3 rooms invalides")
+    assert(level.zone1.connector_to_zone2 and level.zone2.connector_to_zone3, "connecteurs manquants")
+  end
+
+  return { ok = true, runs = count, seed = base }
 end
 
 return LevelGenerator
