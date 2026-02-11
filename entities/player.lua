@@ -143,7 +143,8 @@ end
 function Player:getAttackReach(room, target)
   local weapon = self:getEquippedWeapon()
   local bodyReach = (self.size + target.size) * 0.5
-  local weaponReach = weapon.range * room.tileSize
+  local tileSize = (room and room.tileSize) or 32
+  local weaponReach = weapon.range * tileSize
   return bodyReach + weaponReach
 end
 
@@ -195,7 +196,7 @@ function Player:performMeleeAttack(world)
   local bestTarget = nil
   local bestDistance = math.huge
 
-  for _, target in ipairs(world.targets) do
+  for _, target in ipairs(world.targets or {}) do
     if target.isAlive then
       local dx = target.position.x - self.position.x
       local dy = target.position.y - self.position.y
@@ -242,7 +243,7 @@ end
 function Player:pickupNearbyWeapon(world)
   local pickupRadius = 26
 
-  for index, pickup in ipairs(world.pickups) do
+  for index, pickup in ipairs(world.pickups or {}) do
     local dx = pickup.position.x - self.position.x
     local dy = pickup.position.y - self.position.y
     local distance = math.sqrt(dx * dx + dy * dy)
@@ -305,10 +306,32 @@ function Player:takeTurn(input, world, dt)
 
   local moved = false
   if dx ~= 0 or dy ~= 0 then
-    self.position.x = self.position.x + dx * self.speed * dt
-    self.position.y = self.position.y + dy * self.speed * dt
-    self:clampToRoom(world.room)
-    moved = true
+    local burstInput = input:wasPressed("move_up")
+      or input:wasPressed("move_down")
+      or input:wasPressed("move_left")
+      or input:wasPressed("move_right")
+    local burstMultiplier = burstInput and 1.28 or 1.0
+    local movementSpeed = self.speed * burstMultiplier
+
+    local nextX = self.position.x + dx * movementSpeed * dt
+    local nextY = self.position.y + dy * movementSpeed * dt
+
+    if world.isWalkablePosition then
+      local radius = self.size * 0.3
+      if world:isWalkablePosition(nextX, self.position.y, radius) then
+        self.position.x = nextX
+        moved = true
+      end
+      if world:isWalkablePosition(self.position.x, nextY, radius) then
+        self.position.y = nextY
+        moved = true
+      end
+    elseif world.room then
+      self.position.x = nextX
+      self.position.y = nextY
+      self:clampToRoom(world.room)
+      moved = true
+    end
   end
 
   self:updateFacingToMouse()
