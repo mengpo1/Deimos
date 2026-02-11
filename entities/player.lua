@@ -1,56 +1,61 @@
--- Player actor driven by input with grid-based movement.
+-- Player actor driven by input with smooth bounded movement.
 local Class = require("core.class")
 local Actor = require("core.actor")
 
 local Player = Class(Actor)
 
--- Initialize player state, including grid position.
+-- Initialize player state with speed and optional spawn position.
 function Player:init(options)
   Player.super.init(self, options)
-  self.gridPosition = {
-    x = options.gridX or 1,
-    y = options.gridY or 1,
-  }
+  self.speed = options.speed or 180
   self.color = options.color or { 0.92, 0.92, 0.92 }
 end
 
--- Sync the world position to the grid position.
-function Player:syncToRoom(room)
-  self.position.x, self.position.y = room:gridToWorld(self.gridPosition.x, self.gridPosition.y)
+-- Place the player in the center of the room.
+function Player:spawnAtRoomCenter(room)
+  self.position.x = room.origin.x + room.width / 2
+  self.position.y = room.origin.y + room.height / 2
 end
 
--- Attempt to move by a grid delta; returns true on success.
-function Player:moveBy(dx, dy, room)
-  local targetX = self.gridPosition.x + dx
-  local targetY = self.gridPosition.y + dy
-
-  if room:isInsideGrid(targetX, targetY) then
-    self.gridPosition.x = targetX
-    self.gridPosition.y = targetY
-    self:syncToRoom(room)
-    return true
-  end
-
-  return false
+-- Clamp player position so the square stays inside room bounds.
+function Player:clampToRoom(room)
+  local halfSize = self.size / 2
+  self.position.x = math.max(room.origin.x + halfSize, math.min(self.position.x, room.origin.x + room.width - halfSize))
+  self.position.y = math.max(room.origin.y + halfSize, math.min(self.position.y, room.origin.y + room.height - halfSize))
 end
 
--- Consume one input action per turn to move the player.
-function Player:takeTurn(input, room)
+-- Consume continuous input for smooth movement each frame.
+function Player:takeTurn(input, room, dt)
   local dx, dy = 0, 0
 
-  if input:wasPressed("move_up") then
-    dy = -1
-  elseif input:wasPressed("move_down") then
-    dy = 1
-  elseif input:wasPressed("move_left") then
-    dx = -1
-  elseif input:wasPressed("move_right") then
-    dx = 1
-  else
+  if input:isDown("move_up") then
+    dy = dy - 1
+  end
+  if input:isDown("move_down") then
+    dy = dy + 1
+  end
+  if input:isDown("move_left") then
+    dx = dx - 1
+  end
+  if input:isDown("move_right") then
+    dx = dx + 1
+  end
+
+  if dx == 0 and dy == 0 then
     return false
   end
 
-  return self:moveBy(dx, dy, room)
+  if dx ~= 0 and dy ~= 0 then
+    local normalization = math.sqrt(0.5)
+    dx = dx * normalization
+    dy = dy * normalization
+  end
+
+  self.position.x = self.position.x + dx * self.speed * dt
+  self.position.y = self.position.y + dy * self.speed * dt
+  self:clampToRoom(room)
+
+  return true
 end
 
 return Player

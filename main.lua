@@ -39,19 +39,18 @@ function love.load()
 
   player = Player:new({
     size = 24,
-    gridX = math.ceil(room.tilesWide / 2),
-    gridY = math.ceil(room.tilesHigh / 2),
+    speed = 220,
   })
-  player:syncToRoom(room)
+  player:spawnAtRoomCenter(room)
 
   input = Input:new(buildBindings())
 
   turnManager = TurnManager:new({ player })
 end
 
--- Update the active turn and clear input each frame.
-function love.update()
-  turnManager:update(input, room)
+-- Update the active turn and clear one-frame input events.
+function love.update(dt)
+  turnManager:update(input, room, dt)
   input:clearPressed()
 end
 
@@ -61,10 +60,15 @@ function love.draw()
   player:draw()
 
   love.graphics.setColor(0.75, 0.75, 0.75)
-  love.graphics.print("Flèches ou WASD pour bouger", 24, 12)
+  love.graphics.print("Flèches ou WASD pour bouger (maintenir = déplacement fluide)", 24, 12)
 end
 
--- Register key presses for turn consumption.
+-- Register key presses for action handling.
 function love.keypressed(key)
   input:registerPress(key)
+end
+
+-- Register key releases for held-state handling.
+function love.keyreleased(key)
+  input:registerRelease(key)
 end

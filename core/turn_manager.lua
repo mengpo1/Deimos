@@ -30,14 +30,14 @@ function TurnManager:advance()
   end
 end
 
--- Let the active actor attempt a turn, then advance on success.
-function TurnManager:update(input, room)
+-- Let the active actor update, then advance on successful action.
+function TurnManager:update(input, room, dt)
   local actor = self:getActiveActor()
   if not actor then
     return
   end
 
-  if actor:takeTurn(input, room) then
+  if actor:takeTurn(input, room, dt) then
     self:advance()
   end
 end
