@@ -183,7 +183,7 @@ local function generateOnce(seed)
   local floors = {}
 
   local tries = 0
-  local maxTries = roomCount * 60
+  local maxTries = roomCount * 300
 
   while #rooms < roomCount and tries < maxTries do
     tries = tries + 1
@@ -207,6 +207,29 @@ local function generateOnce(seed)
       table.insert(rooms, room)
       carveRect(floors, room.x, room.y, room.width, room.height)
     end
+  end
+
+  if #rooms == 0 then
+    return {
+      dimensions = { width = gridSize, height = gridSize },
+      rooms = {},
+      corridors = {},
+      tiles = {},
+      connector_to_zone2 = nil,
+      entry = nil,
+      parameters = {
+        gridSize = gridSize,
+        roomCount = roomCount,
+        minRoomSize = minRoomSize,
+        maxRoomSize = maxRoomSize,
+        corridorWidth = corridorWidth,
+        allowDiagonal = false,
+        allowIrregularRooms = false,
+        connectivity = 0.0,
+        loops = "minimal",
+      },
+      _floors = floors,
+    }
   end
 
   table.sort(rooms, function(a, b)
@@ -233,13 +256,18 @@ local function generateOnce(seed)
     table.insert(corridors, carveL(floors, a, b, corridorWidth))
   end
 
-  local entry = { x = 1, y = roomCenter(rooms[1]).y, edge = "left" }
-  local connector = { x = gridSize, y = roomCenter(rooms[#rooms]).y, edge = "right" }
+  local firstCenter = roomCenter(rooms[1])
+  local lastCenter = roomCenter(rooms[#rooms])
+
+  local entry = { x = 1, y = firstCenter.y, edge = "left" }
+  local connector = { x = gridSize, y = lastCenter.y, edge = "right" }
 
   addDoor(rooms[1], floors, entry.x, entry.y)
   addDoor(rooms[#rooms], floors, connector.x, connector.y)
-  floors[keyOf(entry.x + 1, entry.y)] = true
-  floors[keyOf(connector.x - 1, connector.y)] = true
+
+  -- Force rational border access corridors from entry/exit to nearest room center.
+  carveHorizontal(floors, entry.x + 1, firstCenter.x, firstCenter.y, corridorWidth)
+  carveHorizontal(floors, lastCenter.x, connector.x - 1, lastCenter.y, corridorWidth)
 
   local doors = {
     { x = entry.x, y = entry.y },
