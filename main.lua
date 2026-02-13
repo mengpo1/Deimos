@@ -103,22 +103,33 @@ local function buildWorldFromZone(zone)
   end
 
 
-  function worldState:getCameraRect()
-    local room = self.activeRoom
-    local minTileX = room.x - ROOM_VIEW_PADDING_TILES
-    local minTileY = room.y - ROOM_VIEW_PADDING_TILES
-    local widthTiles = room.width + ROOM_VIEW_PADDING_TILES * 2
-    local heightTiles = room.height + ROOM_VIEW_PADDING_TILES * 2
+  function worldState:getCameraRect(focus)
+    local focusX = (focus and focus.position and focus.position.x) or (self.room.width * 0.5)
+    local focusY = (focus and focus.position and focus.position.y) or (self.room.height * 0.5)
+
+    local viewWidth = love.graphics.getWidth()
+    local viewHeight = love.graphics.getHeight()
+
+    local x = focusX - viewWidth * 0.5
+    local y = focusY - viewHeight * 0.5
+
+    x = math.max(0, math.min(x, self.room.width - viewWidth))
+    y = math.max(0, math.min(y, self.room.height - viewHeight))
+
+    local minTileX = math.floor(x / self.room.tileSize) + 1
+    local minTileY = math.floor(y / self.room.tileSize) + 1
+    local maxTileX = math.ceil((x + viewWidth) / self.room.tileSize)
+    local maxTileY = math.ceil((y + viewHeight) / self.room.tileSize)
 
     return {
-      x = (minTileX - 1) * self.room.tileSize,
-      y = (minTileY - 1) * self.room.tileSize,
-      width = widthTiles * self.room.tileSize,
-      height = heightTiles * self.room.tileSize,
+      x = x,
+      y = y,
+      width = viewWidth,
+      height = viewHeight,
       minTileX = minTileX,
       minTileY = minTileY,
-      maxTileX = minTileX + widthTiles - 1,
-      maxTileY = minTileY + heightTiles - 1,
+      maxTileX = maxTileX,
+      maxTileY = maxTileY,
     }
   end
 
@@ -134,10 +145,6 @@ local function buildWorldFromZone(zone)
 
     for _, sample in ipairs(samples) do
       local tx, ty = worldToTile(self.room, sample.x, sample.y)
-      local room = self.activeRoom
-      if tx < room.x or tx > room.x + room.width - 1 or ty < room.y or ty > room.y + room.height - 1 then
-        return false
-      end
       if not isWalkableTile(self, tx, ty) then
         return false
       end
@@ -161,8 +168,7 @@ local function spawnPlayerInZoneEntry(worldState)
   player.position.y = spawn.y
 end
 
-local function drawZoneTiles(worldState)
-  local cam = worldState:getCameraRect()
+local function drawZoneTiles(worldState, cam)
 
   for ty = cam.minTileY, cam.maxTileY do
     for tx = cam.minTileX, cam.maxTileX do
@@ -220,11 +226,11 @@ function love.update(dt)
 end
 
 function love.draw()
-  local cam = world:getCameraRect()
+  local cam = world:getCameraRect(player)
   love.graphics.push()
   love.graphics.translate(-cam.x, -cam.y)
 
-  drawZoneTiles(world)
+  drawZoneTiles(world, cam)
 
   for _, pickup in ipairs(world.pickups) do
     pickup:draw()
@@ -236,7 +242,7 @@ function love.draw()
   local weapon = player:getEquippedWeapon()
 
   love.graphics.setColor(0.85, 0.85, 0.85)
-  love.graphics.print("Caméra fixe sur une seule pièce", 12, 8)
+  love.graphics.print("Caméra qui suit le joueur", 12, 8)
   love.graphics.print("Déplacement: Flèches/WASD", 12, 24)
   love.graphics.print(string.format("Arme: %s | Dégâts: %d | Portée: %d", weapon.label, weapon.damage, weapon.range), 12, 40)
 
