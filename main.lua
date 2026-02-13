@@ -11,8 +11,9 @@ local player
 local turnManager
 local input
 
-local TILE_SIZE = 16
+local TILE_SIZE = 24
 local SEED = 1337
+local ROOM_VIEW_PADDING_TILES = 2
 
 local function buildBindings()
   return {
@@ -58,6 +59,8 @@ local function isWalkableTile(worldState, tx, ty)
 end
 
 local function buildWorldFromZone(zone)
+  local activeRoom = zone.rooms[1]
+
   local room = Room:new({
     tileSize = TILE_SIZE,
     tilesWide = zone.dimensions.width,
@@ -65,28 +68,58 @@ local function buildWorldFromZone(zone)
     padding = 24,
   })
 
-  local windowWidth = room.width + room.padding * 2
-  local windowHeight = room.height + room.padding * 2
+  local viewTilesWide = activeRoom.width + ROOM_VIEW_PADDING_TILES * 2
+  local viewTilesHigh = activeRoom.height + ROOM_VIEW_PADDING_TILES * 2
+  local windowWidth = viewTilesWide * TILE_SIZE
+  local windowHeight = viewTilesHigh * TILE_SIZE
   love.window.setMode(windowWidth, windowHeight, { resizable = false })
 
-  room.origin.x = room.padding
-  room.origin.y = room.padding
+  room.origin.x = 0
+  room.origin.y = 0
 
   local worldState = {
     room = room,
     zone = zone,
+    activeRoom = activeRoom,
     tileLookup = buildZoneTileLookup(zone),
     targets = {},
-    pickups = {
-      WeaponPickup:new({ x = room.origin.x + room.width * 0.25, y = room.origin.y + room.height * 0.30, weaponId = "stick" }),
-      WeaponPickup:new({ x = room.origin.x + room.width * 0.70, y = room.origin.y + room.height * 0.65, weaponId = "knife" }),
-    },
+    pickups = {},
     message = "",
     messageTimer = 0,
   }
 
+
+  local pickupTileA = { x = activeRoom.x + 2, y = activeRoom.y + 2 }
+  local pickupTileB = { x = activeRoom.x + activeRoom.width - 3, y = activeRoom.y + activeRoom.height - 3 }
+  local pickupA = tileToWorld(room, pickupTileA.x, pickupTileA.y)
+  local pickupB = tileToWorld(room, pickupTileB.x, pickupTileB.y)
+
+  worldState.pickups = {
+    WeaponPickup:new({ x = pickupA.x, y = pickupA.y, weaponId = "stick" }),
+    WeaponPickup:new({ x = pickupB.x, y = pickupB.y, weaponId = "knife" }),
+  }
   function worldState:createPickup(options)
     return WeaponPickup:new(options)
+  end
+
+
+  function worldState:getCameraRect()
+    local room = self.activeRoom
+    local minTileX = room.x - ROOM_VIEW_PADDING_TILES
+    local minTileY = room.y - ROOM_VIEW_PADDING_TILES
+    local widthTiles = room.width + ROOM_VIEW_PADDING_TILES * 2
+    local heightTiles = room.height + ROOM_VIEW_PADDING_TILES * 2
+
+    return {
+      x = (minTileX - 1) * self.room.tileSize,
+      y = (minTileY - 1) * self.room.tileSize,
+      width = widthTiles * self.room.tileSize,
+      height = heightTiles * self.room.tileSize,
+      minTileX = minTileX,
+      minTileY = minTileY,
+      maxTileX = minTileX + widthTiles - 1,
+      maxTileY = minTileY + heightTiles - 1,
+    }
   end
 
   function worldState:isWalkablePosition(x, y, radius)
@@ -101,6 +134,10 @@ local function buildWorldFromZone(zone)
 
     for _, sample in ipairs(samples) do
       local tx, ty = worldToTile(self.room, sample.x, sample.y)
+      local room = self.activeRoom
+      if tx < room.x or tx > room.x + room.width - 1 or ty < room.y or ty > room.y + room.height - 1 then
+        return false
+      end
       if not isWalkableTile(self, tx, ty) then
         return false
       end
@@ -113,9 +150,10 @@ local function buildWorldFromZone(zone)
 end
 
 local function spawnPlayerInZoneEntry(worldState)
+  local room = worldState.activeRoom
   local spawnTile = {
-    x = math.min(worldState.zone.entry.x + 1, worldState.zone.dimensions.width),
-    y = worldState.zone.entry.y,
+    x = room.x + 1,
+    y = room.y + math.floor(room.height / 2),
   }
 
   local spawn = tileToWorld(worldState.room, spawnTile.x, spawnTile.y)
@@ -124,24 +162,31 @@ local function spawnPlayerInZoneEntry(worldState)
 end
 
 local function drawZoneTiles(worldState)
-  for _, tile in ipairs(worldState.zone.tiles) do
-    local x = worldState.room.origin.x + (tile.x - 1) * worldState.room.tileSize
-    local y = worldState.room.origin.y + (tile.y - 1) * worldState.room.tileSize
+  local cam = worldState:getCameraRect()
 
-    if tile.type == "floor" then
-      love.graphics.setColor(0.14, 0.14, 0.14)
-    elseif tile.type == "door" then
-      love.graphics.setColor(0.72, 0.72, 0.72)
-    else
-      love.graphics.setColor(0.07, 0.07, 0.07)
+  for ty = cam.minTileY, cam.maxTileY do
+    for tx = cam.minTileX, cam.maxTileX do
+      local tileType = worldState.tileLookup[tileKey(tx, ty)] or "void"
+      local x = (tx - 1) * worldState.room.tileSize
+      local y = (ty - 1) * worldState.room.tileSize
+
+      if tileType == "floor" then
+        love.graphics.setColor(0.14, 0.14, 0.14)
+      elseif tileType == "door" then
+        love.graphics.setColor(0.72, 0.72, 0.72)
+      elseif tileType == "wall" then
+        love.graphics.setColor(0.07, 0.07, 0.07)
+      else
+        love.graphics.setColor(0.02, 0.02, 0.02)
+      end
+
+      love.graphics.rectangle("fill", x, y, worldState.room.tileSize, worldState.room.tileSize)
     end
-
-    love.graphics.rectangle("fill", x, y, worldState.room.tileSize, worldState.room.tileSize)
   end
 
-  love.graphics.setColor(0.24, 0.24, 0.24)
+  love.graphics.setColor(0.26, 0.26, 0.26)
   love.graphics.setLineWidth(2)
-  love.graphics.rectangle("line", worldState.room.origin.x, worldState.room.origin.y, worldState.room.width, worldState.room.height)
+  love.graphics.rectangle("line", (worldState.activeRoom.x - 1) * worldState.room.tileSize, (worldState.activeRoom.y - 1) * worldState.room.tileSize, worldState.activeRoom.width * worldState.room.tileSize, worldState.activeRoom.height * worldState.room.tileSize)
 end
 
 function love.load()
@@ -151,7 +196,7 @@ function love.load()
   local zone = Zone1Generator.generate(SEED)
   world = buildWorldFromZone(zone)
 
-  player = Player:new({ size = 12, speed = 420, equippedWeaponId = "fists" })
+  player = Player:new({ size = 16, speed = 520, equippedWeaponId = "fists" })
   spawnPlayerInZoneEntry(world)
 
   input = Input:new(buildBindings())
@@ -175,6 +220,10 @@ function love.update(dt)
 end
 
 function love.draw()
+  local cam = world:getCameraRect()
+  love.graphics.push()
+  love.graphics.translate(-cam.x, -cam.y)
+
   drawZoneTiles(world)
 
   for _, pickup in ipairs(world.pickups) do
@@ -182,16 +231,17 @@ function love.draw()
   end
 
   player:draw()
+  love.graphics.pop()
 
   local weapon = player:getEquippedWeapon()
 
   love.graphics.setColor(0.85, 0.85, 0.85)
-  love.graphics.print("Zone 1 stable (orthogonale) générée procéduralement", 16, 6)
-  love.graphics.print("Déplacement: Flèches/WASD", 16, 24)
-  love.graphics.print(string.format("Arme: %s | Dégâts: %d | Portée: %d", weapon.label, weapon.damage, weapon.range), 16, 42)
+  love.graphics.print("Caméra fixe sur une seule pièce", 12, 8)
+  love.graphics.print("Déplacement: Flèches/WASD", 12, 24)
+  love.graphics.print(string.format("Arme: %s | Dégâts: %d | Portée: %d", weapon.label, weapon.damage, weapon.range), 12, 40)
 
   if world.message ~= "" then
-    love.graphics.print(world.message, 16, 60)
+    love.graphics.print(world.message, 12, 56)
   end
 end
 
