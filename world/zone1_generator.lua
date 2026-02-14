@@ -3,6 +3,8 @@
 
 local Zone1Generator = {}
 
+local ZONE_SCALE_FACTOR = 5
+
 local function createRng(seed)
   local state = (tonumber(seed) or 1) % 2147483647
   if state <= 0 then
@@ -174,8 +176,8 @@ end
 local function generateOnce(seed)
   local rng = createRng(seed)
 
-  local gridSize = rng.randomInt(50, 70)
-  local roomCount = rng.randomInt(8, 15)
+  local gridSize = rng.randomInt(50, 70) * ZONE_SCALE_FACTOR
+  local roomCount = rng.randomInt(8, 15) * ZONE_SCALE_FACTOR
   local corridorWidth = rng.randomInt(2, 4)
   local minRoomSize, maxRoomSize = 6, 12
 
@@ -306,7 +308,7 @@ local function validate(zone)
     return false
   end
 
-  if #zone.rooms < 8 or #zone.rooms > 15 then
+  if #zone.rooms < 8 * ZONE_SCALE_FACTOR or #zone.rooms > 15 * ZONE_SCALE_FACTOR then
     return false
   end
 

@@ -15,7 +15,7 @@ local TILE_SIZE = 24
 local ROOM_VIEW_PADDING_TILES = 2
 
 local gameState = {
-  seed = 1337,
+  seed = nil,
 }
 
 local resolutionOptions = {
@@ -480,8 +480,9 @@ function love.load()
   love.window.setTitle("Deimos - Zone 1 générée")
   love.graphics.setBackgroundColor(0.04, 0.04, 0.04)
 
+  love.math.setRandomSeed(os.time())
   applyResolution()
-  startNewGame(gameState.seed)
+  startNewGame()
 end
 
 function love.update(dt)
