@@ -1,9 +1,9 @@
--- Love2D entry point: generated Zone 1 exploration with pause menu.
+-- Love2D entry point: single-room prototype with pause menu.
 local Input = require("core.input")
 local Player = require("entities.player")
 local TurnManager = require("core.turn_manager")
 local WeaponPickup = require("world.weapon_pickup")
-local Zone1Generator = require("world.zone1_generator")
+local Room = require("world.room")
 local SaveSystem = require("core.save_system")
 
 local world
@@ -12,11 +12,8 @@ local turnManager
 local input
 
 local TILE_SIZE = 24
-local ROOM_VIEW_PADDING_TILES = 2
-
-local gameState = {
-  seed = nil,
-}
+local ROOM_TILES_WIDE = 60
+local ROOM_TILES_HIGH = 40
 
 local resolutionOptions = {
   { width = 960, height = 540 },
@@ -84,149 +81,15 @@ local function buildBindings()
   }
 end
 
-local function tileKey(tx, ty)
-  return string.format("%d,%d", tx, ty)
-end
-
-local function buildZoneTileLookup(zone)
-  local lookup = {}
-  for _, tile in ipairs(zone.tiles) do
-    lookup[tileKey(tile.x, tile.y)] = tile.type
-  end
-  return lookup
-end
-
-local function tileToWorld(room, tx, ty)
-  return {
-    x = room.origin.x + (tx - 0.5) * room.tileSize,
-    y = room.origin.y + (ty - 0.5) * room.tileSize,
-  }
-end
-
-local function worldToTile(room, x, y)
-  local tx = math.floor((x - room.origin.x) / room.tileSize) + 1
-  local ty = math.floor((y - room.origin.y) / room.tileSize) + 1
-  return tx, ty
-end
-
-local function isWalkableTile(worldState, tx, ty)
-  local tileType = worldState.tileLookup[tileKey(tx, ty)]
-  return tileType == "floor" or tileType == "door"
-end
-
 local function applyResolution()
   local option = resolutionOptions[optionsState.resolutionIndex]
   love.window.setMode(option.width, option.height, { resizable = false })
 end
 
-local function buildWorldFromZone(zone, pickupState)
-  local activeRoom = zone.rooms[1]
-
-  local worldWidth = zone.dimensions.width * TILE_SIZE
-  local worldHeight = zone.dimensions.height * TILE_SIZE
-
-  local worldState = {
-    room = {
-      origin = { x = 0, y = 0 },
-      tileSize = TILE_SIZE,
-      width = worldWidth,
-      height = worldHeight,
-    },
-    zone = zone,
-    activeRoom = activeRoom,
-    tileLookup = buildZoneTileLookup(zone),
-    targets = {},
-    pickups = {},
-    message = "",
-    messageTimer = 0,
-  }
-
-  if pickupState and #pickupState > 0 then
-    for _, pick in ipairs(pickupState) do
-      table.insert(worldState.pickups, WeaponPickup:new({
-        x = pick.x,
-        y = pick.y,
-        weaponId = pick.weaponId,
-        durability = pick.durability,
-      }))
-    end
-  else
-    local pickupTileA = { x = activeRoom.x + 2, y = activeRoom.y + 2 }
-    local pickupTileB = { x = activeRoom.x + activeRoom.width - 3, y = activeRoom.y + activeRoom.height - 3 }
-    local pickupA = tileToWorld(worldState.room, pickupTileA.x, pickupTileA.y)
-    local pickupB = tileToWorld(worldState.room, pickupTileB.x, pickupTileB.y)
-
-    worldState.pickups = {
-      WeaponPickup:new({ x = pickupA.x, y = pickupA.y, weaponId = "stick" }),
-      WeaponPickup:new({ x = pickupB.x, y = pickupB.y, weaponId = "knife" }),
-    }
-  end
-
-  function worldState:createPickup(options)
-    return WeaponPickup:new(options)
-  end
-
-  function worldState:getCameraRect(focus)
-    local focusX = (focus and focus.position and focus.position.x) or (self.room.width * 0.5)
-    local focusY = (focus and focus.position and focus.position.y) or (self.room.height * 0.5)
-
-    local viewWidth = love.graphics.getWidth()
-    local viewHeight = love.graphics.getHeight()
-
-    local x = focusX - viewWidth * 0.5
-    local y = focusY - viewHeight * 0.5
-
-    x = math.max(0, math.min(x, self.room.width - viewWidth))
-    y = math.max(0, math.min(y, self.room.height - viewHeight))
-
-    local minTileX = math.floor(x / self.room.tileSize) + 1
-    local minTileY = math.floor(y / self.room.tileSize) + 1
-    local maxTileX = math.ceil((x + viewWidth) / self.room.tileSize)
-    local maxTileY = math.ceil((y + viewHeight) / self.room.tileSize)
-
-    return {
-      x = x,
-      y = y,
-      minTileX = minTileX,
-      minTileY = minTileY,
-      maxTileX = maxTileX,
-      maxTileY = maxTileY,
-    }
-  end
-
-  function worldState:isWalkablePosition(x, y, radius)
-    local r = radius or 0
-    local samples = {
-      { x = x, y = y },
-      { x = x - r, y = y },
-      { x = x + r, y = y },
-      { x = x, y = y - r },
-      { x = x, y = y + r },
-    }
-
-    for _, sample in ipairs(samples) do
-      local tx, ty = worldToTile(self.room, sample.x, sample.y)
-      if not isWalkableTile(self, tx, ty) then
-        return false
-      end
-    end
-
-    return true
-  end
-
-  return worldState
-end
-
-local function spawnPlayerInZoneEntry(worldState)
-  local room = worldState.activeRoom
-  local spawnTile = {
-    x = room.x + 1,
-    y = room.y + math.floor(room.height / 2),
-  }
-
-  local spawn = tileToWorld(worldState.room, spawnTile.x, spawnTile.y)
-  player.position.x = spawn.x
-  player.position.y = spawn.y
+local function spawnPlayerInRoom(room)
+  local x, y = room:gridToWorld(math.floor(room.tilesWide * 0.5), math.floor(room.tilesHigh * 0.5))
+  player.position.x = x
+  player.position.y = y
 end
 
 local function serializePickups()
@@ -251,11 +114,88 @@ local function serializePlayer()
   }
 end
 
-local function startNewGame(seed, loaded)
-  gameState.seed = seed or love.math.random(1, 999999)
-  local zone = Zone1Generator.generate(gameState.seed)
-  world = buildWorldFromZone(zone, loaded and loaded.pickups or nil)
+local function buildWorld(pickupState)
+  local room = Room:new({
+    tileSize = TILE_SIZE,
+    tilesWide = ROOM_TILES_WIDE,
+    tilesHigh = ROOM_TILES_HIGH,
+    originX = 0,
+    originY = 0,
+  })
 
+  local worldState = {
+    room = room,
+    targets = {},
+    pickups = {},
+    message = "",
+    messageTimer = 0,
+  }
+
+  if pickupState and #pickupState > 0 then
+    for _, pick in ipairs(pickupState) do
+      table.insert(worldState.pickups, WeaponPickup:new({
+        x = pick.x,
+        y = pick.y,
+        weaponId = pick.weaponId,
+        durability = pick.durability,
+      }))
+    end
+  else
+    local ax, ay = room:gridToWorld(8, 8)
+    local bx, by = room:gridToWorld(room.tilesWide - 8, room.tilesHigh - 8)
+    worldState.pickups = {
+      WeaponPickup:new({ x = ax, y = ay, weaponId = "stick" }),
+      WeaponPickup:new({ x = bx, y = by, weaponId = "knife" }),
+    }
+  end
+
+  function worldState:createPickup(options)
+    return WeaponPickup:new(options)
+  end
+
+  function worldState:getCameraRect(focus)
+    local focusX = (focus and focus.position and focus.position.x) or (self.room.width * 0.5)
+    local focusY = (focus and focus.position and focus.position.y) or (self.room.height * 0.5)
+
+    local viewWidth = love.graphics.getWidth()
+    local viewHeight = love.graphics.getHeight()
+
+    local x = focusX - viewWidth * 0.5
+    local y = focusY - viewHeight * 0.5
+
+    x = math.max(0, math.min(x, self.room.width - viewWidth))
+    y = math.max(0, math.min(y, self.room.height - viewHeight))
+
+    return { x = x, y = y }
+  end
+
+  function worldState:isWalkablePosition(x, y, radius)
+    local r = radius or 0
+    local samples = {
+      { x = x - r, y = y - r },
+      { x = x + r, y = y - r },
+      { x = x - r, y = y + r },
+      { x = x + r, y = y + r },
+      { x = x, y = y },
+    }
+
+    for _, sample in ipairs(samples) do
+      if sample.x < self.room.origin.x or sample.x > self.room.origin.x + self.room.width then
+        return false
+      end
+      if sample.y < self.room.origin.y or sample.y > self.room.origin.y + self.room.height then
+        return false
+      end
+    end
+
+    return true
+  end
+
+  return worldState
+end
+
+local function startNewGame(loaded)
+  world = buildWorld(loaded and loaded.pickups or nil)
   player = Player:new({ size = 16, speed = 520, equippedWeaponId = "fists" })
 
   if loaded and loaded.player then
@@ -265,19 +205,18 @@ local function startNewGame(seed, loaded)
     player.inventory = loaded.player.inventory or player.inventory
     player.activeSlot = loaded.player.activeSlot or 1
   else
-    spawnPlayerInZoneEntry(world)
+    spawnPlayerInRoom(world.room)
   end
 
   input = Input:new(buildBindings())
   turnManager = TurnManager:new({ player })
 
-  world.message = string.format("Zone 1 générée (seed %d)", gameState.seed)
+  world.message = "Nouvelle partie (pièce unique)"
   world.messageTimer = 2.2
 end
 
 local function saveToSlot(slot)
   local payload = {
-    seed = gameState.seed,
     player = serializePlayer(),
     pickups = serializePickups(),
     resolutionIndex = optionsState.resolutionIndex,
@@ -306,35 +245,23 @@ local function loadFromSlot(slot)
     applyResolution()
   end
 
-  startNewGame(payload.seed, payload)
+  startNewGame(payload)
   world.message = string.format("Partie chargée slot %d", slot)
   world.messageTimer = 1.6
 end
 
-local function drawZoneTiles(worldState, cam)
-  for ty = cam.minTileY, cam.maxTileY do
-    for tx = cam.minTileX, cam.maxTileX do
-      local tileType = worldState.tileLookup[tileKey(tx, ty)] or "void"
-      local x = (tx - 1) * worldState.room.tileSize
-      local y = (ty - 1) * worldState.room.tileSize
+local function drawWorld(worldState)
+  worldState.room:draw()
 
-      if tileType == "floor" then
-        love.graphics.setColor(0.14, 0.14, 0.14)
-      elseif tileType == "door" then
-        love.graphics.setColor(0.72, 0.72, 0.72)
-      elseif tileType == "wall" then
-        love.graphics.setColor(0.07, 0.07, 0.07)
-      else
-        love.graphics.setColor(0.02, 0.02, 0.02)
-      end
-
-      love.graphics.rectangle("fill", x, y, worldState.room.tileSize, worldState.room.tileSize)
-    end
+  love.graphics.setColor(0.11, 0.11, 0.11)
+  for gx = 1, worldState.room.tilesWide do
+    local x = worldState.room.origin.x + (gx - 1) * worldState.room.tileSize
+    love.graphics.line(x, worldState.room.origin.y, x, worldState.room.origin.y + worldState.room.height)
   end
-
-  love.graphics.setColor(0.26, 0.26, 0.26)
-  love.graphics.setLineWidth(2)
-  love.graphics.rectangle("line", (worldState.activeRoom.x - 1) * worldState.room.tileSize, (worldState.activeRoom.y - 1) * worldState.room.tileSize, worldState.activeRoom.width * worldState.room.tileSize, worldState.activeRoom.height * worldState.room.tileSize)
+  for gy = 1, worldState.room.tilesHigh do
+    local y = worldState.room.origin.y + (gy - 1) * worldState.room.tileSize
+    love.graphics.line(worldState.room.origin.x, y, worldState.room.origin.x + worldState.room.width, y)
+  end
 end
 
 local function openMenu()
@@ -408,7 +335,7 @@ local function handleMainMenuKey(key)
     menu.selection = math.min(max, menu.selection + 1)
   elseif key == "return" or key == "kpenter" then
     if menu.selection == 1 then
-      startNewGame(love.math.random(1, 999999))
+      startNewGame()
       closeMenu()
     elseif menu.selection == 2 then
       menu.screen = "save"
@@ -477,10 +404,9 @@ local function handleOptionsMenuKey(key)
 end
 
 function love.load()
-  love.window.setTitle("Deimos - Zone 1 générée")
+  love.window.setTitle("Deimos - Pièce unique")
   love.graphics.setBackgroundColor(0.04, 0.04, 0.04)
 
-  love.math.setRandomSeed(os.time())
   applyResolution()
   startNewGame()
 end
@@ -507,7 +433,7 @@ function love.draw()
   love.graphics.push()
   love.graphics.translate(-cam.x, -cam.y)
 
-  drawZoneTiles(world, cam)
+  drawWorld(world)
 
   for _, pickup in ipairs(world.pickups) do
     pickup:draw()
