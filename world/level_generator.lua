@@ -1,12 +1,7 @@
--- Deprecated: random level generation removed for single-room phase.
-local LevelGenerator = {}
+-- Public API for multi-zone procedural generation only.
+local LevelGen = require("world.procgen.level_gen")
 
-function LevelGenerator.generateLevel()
-  error("Level generation is disabled in single-room mode")
-end
-
-function LevelGenerator.quickTest()
-  return { passed = true, errors = {}, totalSeeds = 0 }
-end
-
-return LevelGenerator
+return {
+  generateLevel = LevelGen.generateLevel,
+  quickTest = LevelGen.quickTest,
+}
