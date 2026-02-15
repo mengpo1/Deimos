@@ -526,6 +526,7 @@ function love.update(dt)
     return
   end
 
+  world.cameraRect = world:getCameraRect(player)
   turnManager:update(input, world, dt)
 
   if world.messageTimer > 0 then

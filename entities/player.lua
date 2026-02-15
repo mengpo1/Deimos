@@ -134,9 +134,18 @@ function Player:clampToRoom(room)
 end
 
 -- Update facing direction toward the current mouse pointer.
-function Player:updateFacingToMouse()
+function Player:updateFacingToMouse(world)
   local mouseX, mouseY = love.mouse.getPosition()
-  self.facingAngle = math.atan2(mouseY - self.position.y, mouseX - self.position.x)
+  local camX, camY = 0, 0
+
+  if world and world.cameraRect then
+    camX = world.cameraRect.x or 0
+    camY = world.cameraRect.y or 0
+  end
+
+  local worldMouseX = mouseX + camX
+  local worldMouseY = mouseY + camY
+  self.facingAngle = math.atan2(worldMouseY - self.position.y, worldMouseX - self.position.x)
 end
 
 -- Compute maximum attack distance in pixels from weapon range.
@@ -334,7 +343,7 @@ function Player:takeTurn(input, world, dt)
     end
   end
 
-  self:updateFacingToMouse()
+  self:updateFacingToMouse(world)
 
   local attacked = input:wasPressed("attack") and self:performMeleeAttack(world) or false
   local pickedUp = input:wasPressed("pickup") and self:pickupNearbyWeapon(world) or false

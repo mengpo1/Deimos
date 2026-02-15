@@ -9,16 +9,16 @@ local LevelGen = {}
 local DEFAULTS = {
   maxTries = 120,
   zones = {
-    zone1 = { width = 120, height = 64 },
-    zone2 = { width = 136, height = 72 },
-    zone3 = { width = 156, height = 84 },
+    zone1 = { width = 96, height = 56 },
+    zone2 = { width = 104, height = 64 },
+    zone3 = { width = 120, height = 72 },
   },
   corridorWidthRange = { 1, 3 },
   filterLengthRange = { 4, 12 },
   arenaSizeRange = { 6, 12 },
   largeArenaSizeRange = { 12, 18 },
   pivotSizeRange = { 10, 16 },
-  connectorLengthRange = { 8, 16 },
+  connectorLengthRange = { 2, 4 },
 }
 
 local function deepCopy(source)
