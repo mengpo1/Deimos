@@ -6,11 +6,11 @@ local Validate = require("world.procgen.validate")
 local LevelGen = {}
 
 local DEFAULTS = {
-  maxTries = 120,
+  maxTries = 60,
   zones = {
-    zone1 = { width = 120, height = 64 },
-    zone2 = { width = 136, height = 72 },
-    zone3 = { width = 156, height = 84 },
+    zone1 = { width = 96, height = 56 },
+    zone2 = { width = 104, height = 64 },
+    zone3 = { width = 120, height = 72 },
   },
   corridorWidthRange = { 1, 3 },
   filterLengthRange = { 4, 12 },
@@ -125,10 +125,11 @@ local function buildZoneConfig(id, dims, grammar, anomalies, rng, params)
   }
 end
 
-local function tryGenerate(seed, cfg, useRelaxedAnomalies)
-  local maxAttempts = cfg.maxTries
+function LevelGen.generateLevel(seed, params)
+  assert(seed ~= nil, "generateLevel(seed, params): seed obligatoire")
 
-  for attempt = 0, maxAttempts - 1 do
+  local cfg = mergeParams(params)
+  for attempt = 0, cfg.maxTries - 1 do
     local rng = Rng.new((tonumber(seed) or 1) + attempt)
 
     local zone1 = ZoneGen.generate(buildZoneConfig(
@@ -151,12 +152,11 @@ local function tryGenerate(seed, cfg, useRelaxedAnomalies)
       ))
 
       if zone2 then
-        local zone3Anomalies = useRelaxedAnomalies and { "Σ1", "Σ4" } or { "Σ1", "Σ2", "Σ3", "Σ4", "Σ5" }
         local zone3 = ZoneGen.generate(buildZoneConfig(
           "zone3",
           cfg.zones.zone3,
           { "F", "Σ", "A", "F", "A", "Σ", "P", "F", "A_LARGE" },
-          zone3Anomalies,
+          { "Σ1", "Σ2", "Σ3", "Σ4", "Σ5" },
           rng,
           cfg
         ))
@@ -197,33 +197,6 @@ local function tryGenerate(seed, cfg, useRelaxedAnomalies)
         end
       end
     end
-  end
-
-  return nil
-end
-
-function LevelGen.generateLevel(seed, params)
-  assert(seed ~= nil, "generateLevel(seed, params): seed obligatoire")
-
-  local cfg = mergeParams(params)
-  local levelData = tryGenerate(seed, cfg, false)
-  if levelData then
-    return levelData
-  end
-
-  -- Robust fallback path to avoid hard runtime failures on unlucky seeds.
-  local relaxedCfg = deepCopy(cfg)
-  relaxedCfg.maxTries = math.max(cfg.maxTries * 4, 240)
-  relaxedCfg.zones.zone1.width = relaxedCfg.zones.zone1.width + 24
-  relaxedCfg.zones.zone2.width = relaxedCfg.zones.zone2.width + 28
-  relaxedCfg.zones.zone3.width = relaxedCfg.zones.zone3.width + 32
-  relaxedCfg.zones.zone1.height = relaxedCfg.zones.zone1.height + 8
-  relaxedCfg.zones.zone2.height = relaxedCfg.zones.zone2.height + 10
-  relaxedCfg.zones.zone3.height = relaxedCfg.zones.zone3.height + 12
-
-  levelData = tryGenerate(seed, relaxedCfg, true)
-  if levelData then
-    return levelData
   end
 
   error("generateLevel(seed, params): échec de génération après maxTries")
