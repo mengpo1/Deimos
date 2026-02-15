@@ -18,7 +18,7 @@ local DEFAULTS = {
   arenaSizeRange = { 6, 12 },
   largeArenaSizeRange = { 12, 18 },
   pivotSizeRange = { 10, 16 },
-  connectorLengthRange = { 2, 4 },
+  connectorLengthRange = { 1, 2 },
 }
 
 local function deepCopy(source)
